@@ -1,0 +1,100 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+
+void check(FILE* inptPntr, int* jpeg_count1, int* check_counter1);
+void read_write(FILE* inptPntr, FILE* outPntr, int* jpeg_count2, int* check_counter2);
+
+int main(int argc, char* argv[])
+
+{
+    if (argc != 2 || argv[1] == NULL)
+    {
+        printf("Error: Command line.\n");
+        return 1;
+    }
+
+    FILE* inptPntr = fopen(argv[1], "r");
+
+    if (inptPntr == NULL)
+    {
+        fclose(inptPntr);
+        printf("Input pointer points to nothing.\n");
+        return 2;
+    }
+
+    fseek(inptPntr, 0, SEEK_SET);
+    int jpeg_count = -1;
+    int check_counter = -1;
+    check(inptPntr, &jpeg_count, &check_counter);
+    return 0;
+}
+
+void check(FILE* inptPntr, int* jpeg_count1, int* check_counter1)
+
+{
+
+    uint8_t *checkBuff = malloc(sizeof(uint8_t) * 4);
+    fread(checkBuff, sizeof(uint8_t), 4, inptPntr);
+
+    if  (checkBuff[0] == 0xff &&
+        checkBuff[1] == 0xd8 &&
+        checkBuff[2] == 0xff &&
+        (checkBuff[3] & 0xf0) == 0xe0)
+
+    {
+        free(checkBuff);
+        *jpeg_count1 = *jpeg_count1+1;
+        *check_counter1 = *check_counter1+1;
+        fseek (inptPntr, -4, SEEK_CUR);
+        char jpgNames[8];
+        int jc_deref = *jpeg_count1;
+        sprintf(jpgNames, "%03i.jpg", jc_deref);
+        FILE* outPntr = fopen(jpgNames, "a");
+        read_write(inptPntr, outPntr, jpeg_count1, check_counter1);
+    }
+
+    else
+    {
+        free(checkBuff);
+
+        if (feof(inptPntr))
+        {
+            fclose(inptPntr);
+            exit(0);
+        }
+
+
+        fseek (inptPntr, -4, SEEK_CUR);
+        if (*check_counter1 == *jpeg_count1 && *check_counter1 > -1)
+        {
+            char jpgNames[8];
+            int jc_deref2 = *jpeg_count1;
+            sprintf(jpgNames, "%03i.jpg", jc_deref2);
+            FILE* outPntr = fopen(jpgNames, "a");
+            read_write(inptPntr, outPntr, jpeg_count1, check_counter1);
+            return;
+        }
+
+        else
+        {
+            fseek(inptPntr, 512, SEEK_CUR);
+            check(inptPntr, jpeg_count1, check_counter1);
+        }
+    }
+
+    return;
+}
+
+void read_write(FILE *inptPntr, FILE *outPntr, int *jpeg_count2, int *check_counter2)
+
+{
+        FILE *inptBuff = malloc(sizeof(uint8_t) * 512);
+        fread(inptBuff, sizeof(uint8_t), 512, inptPntr);
+        fwrite(inptBuff, sizeof(uint8_t), 512, outPntr);
+        fclose(outPntr);
+        free(inptBuff);
+        check(inptPntr, jpeg_count2, check_counter2);
+
+    return;
+}
